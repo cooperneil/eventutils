@@ -13,7 +13,7 @@ import (
 
 // RefURI is the Ref tag that should be included for this particular schema.
 func RefURI(ceType, registry string) string {
-	return fmt.Sprintf("%s/%s.json", registry, ceType)
+	return fmt.Sprintf("%sdownload/%s.json", registry, ceType)
 }
 
 // Schema writes a JSON schema that can be used for the specified type.

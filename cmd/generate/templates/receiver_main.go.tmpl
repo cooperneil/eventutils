@@ -1,0 +1,53 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+
+	cloudevents "github.com/cloudevents/sdk-go"
+	"knative.dev/eventing-contrib/pkg/kncloudevents"
+)
+
+// {{.TypeComment}}
+type {{.GoType}} struct {
+  {{range .StructFields}}
+  {{.Name}} {{.FieldType}} {{.Tags}}
+  {{end}}
+}
+
+func receiveEventTypeEvent(id, source, subject, eventType string, event {{.GoType}}) error {
+  log.Printf("Received event of type %s with content %v", eventType, event)
+
+	return nil
+}
+
+// Below here - mose of this would not be there.
+
+func handleEvent(event cloudevents.Event, resp *cloudevents.EventResponse) error {
+	id := event.ID()
+	source := event.Source()
+	subject := event.Subject()
+	eventType := event.Type()
+
+	dataBytes, _ := event.DataBytes()
+
+	var data {{.GoType}}
+	json.Unmarshal(dataBytes, &data)
+
+	err := receiveEventTypeEvent(id, source, subject, eventType, data)
+	if err != nil {
+		log.Printf("Error handling event: %v", err)
+	}
+
+	return err
+}
+
+func main() {
+	c, err := kncloudevents.NewDefaultClient()
+	if err != nil {
+		log.Fatal("Failed to create client, ", err)
+	}
+
+	log.Fatal(c.StartReceiver(context.Background(), handleEvent))
+}

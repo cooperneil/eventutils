@@ -1,11 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
 	"github.com/labstack/gommon/log"
 	"github.com/mikehelmick/eventutils/pkg/generate"
+	"github.com/mikehelmick/eventutils/pkg/registry"
 	"github.com/mikehelmick/eventutils/pkg/user"
 )
 
@@ -19,6 +21,10 @@ func writeFile(fName, content string) {
 }
 
 func main() {
+	urlFlag := flag.String("registry", registry.Default, "schema registry")
+	flag.Parse()
+	registryURL := *urlFlag
+
 	// Replace the type of this variable with one of the type you
 	// wish to generate a JSON Schema for.
 	// Your type will need to be included.
@@ -27,18 +33,15 @@ func main() {
 	ceSource := "com.mikehelmick.example.login"
 	ceType := "com.mikehelmick.eventutils.user.user"
 
-	// This is a public registry of types.
-	registry := "https://registry-XX-uc.a.run.app"
-
 	// No need to modify below here.
-	jsonString, err := generate.Schema(ceType, registry, genType)
+	jsonString, err := generate.Schema(ceType, registryURL, genType)
 	if err != nil {
 		log.Errorf("Error generating schema: %v", err)
 		return
 	}
 	fmt.Println(jsonString)
 	fmt.Println("------------------------")
-	yamlString, err := generate.EventType(ceType, ceSource, registry)
+	yamlString, err := generate.EventType(ceType, ceSource, registryURL)
 	if err != nil {
 		log.Errorf("Error generating EventType: %v", err)
 		return

@@ -1,0 +1,13 @@
+apiVersion: eventing.knative.dev/v1alpha1
+kind: Trigger
+metadata:
+  name: trigger-for-{{.ServiceName}}
+spec:
+  filter:
+    attributes:
+      type: {{.Type}}
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: handle-{{.ServiceName}}
