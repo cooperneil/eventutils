@@ -210,6 +210,7 @@ func generateSender(c Config) {
 	os.Mkdir(c.Dir, os.ModePerm)
 	log.Printf("Generating golang client...")
 	renderTemplate("templates/client.go.tmpl", c.outputFile("main.go"), data)
+	renderTemplate("templates/Gopkg.toml.tmpl", c.outputFile("Gopkg.toml"), data)
 
 	//runCommand("/usr/local/bin/dep ensure", c.Dir)
 	//runCommand("/usr/local/go/bin/go fmt ./...", c.Dir)

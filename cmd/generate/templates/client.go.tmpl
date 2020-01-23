@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -23,7 +22,7 @@ const broker = "{{.target}}"
 const schema = "{{.schema}}"
 
 
-func sendEvent(c cloudevents.Client, data *GoType, id string) {
+func sendEvent(c cloudevents.Client, data *{{.GoType}}, id string) {
 	ctx := cloudevents.ContextWithTarget(context.Background(), broker)
 
 	event := cloudevents.NewEvent(cloudevents.VersionV1)
@@ -43,7 +42,7 @@ func main() {
 		log.Fatal("Failed to create client, ", err)
 	}
 
-	var event &{{.GoType}}
+	event := &{{.GoType}}{}
 	id := fmt.Sprint("%d", time.Now().UnixNano())
   // BEGIN HERE - fill in content of {{.GoType}}
 
