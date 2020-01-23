@@ -31,6 +31,14 @@ func getTypeName(ref string) string {
 	cutPoint := strings.LastIndex(ref, ".")
 	typeName := ref[cutPoint+1:]
 	typeName = caseSegment(typeName)
+
+	// Convert - to Camel case
+	i := strings.Index(typeName, "-")
+	for i >= 0 {
+		typeName = fmt.Sprintf("%s%s%s", typeName[0:i], strings.ToUpper(typeName[i+1:i+2]), typeName[i+2:])
+		i = strings.Index(typeName, "-")
+	}
+
 	return typeName
 }
 

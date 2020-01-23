@@ -28,10 +28,10 @@ func main() {
 	// Replace the type of this variable with one of the type you
 	// wish to generate a JSON Schema for.
 	// Your type will need to be included.
-	var genType user.User
+	var genType user.NoPIIUser
 	// Replace this with the type string of the
 	ceSource := "com.mikehelmick.example.login"
-	ceType := "com.mikehelmick.eventutils.user.user"
+	ceType := "com.mikehelmick.eventutils.user.nopii-user"
 
 	// No need to modify below here.
 	jsonString, err := generate.Schema(ceType, registryURL, genType)

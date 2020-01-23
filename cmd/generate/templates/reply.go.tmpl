@@ -19,7 +19,7 @@ type {{.ReplyGoType}} struct {
   {{end}}
 }
 
-func receiveEventTypeEvent(id, source, subject, eventType string, event {{.GoType}}) (*{{.ReplyGoType}}, error) {
+func receiveEventTypeEvent(id, source, subject, eventType string, event *{{.GoType}}) (*{{.ReplyGoType}}, error) {
   log.Printf("Received event of type %s with content %v", eventType, event)
   // TODO(you) Do something to handle the event.
   // Create the reply and return it.
@@ -62,5 +62,6 @@ func main() {
       	rEvent.Data = reply
         resp.RespondWith(200, &rEvent)
       }
+      return nil
 		}))
 }
