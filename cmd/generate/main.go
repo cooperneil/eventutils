@@ -64,7 +64,7 @@ func processFields(schema jsonschema.Type, required map[string]bool) []StructFie
 		if required[prop] {
 			extra = ""
 		}
-		tags := fmt.Sprintf("`json:\"prop%s\"`", extra)
+		tags := fmt.Sprintf("`json:\"%s%s\"`", prop, extra)
 
 		rtn = append(rtn, StructField{name, fieldType, tags})
 	}
@@ -89,20 +89,31 @@ func renderTemplate(tFile, oFile string, data map[string]interface{}) {
 	w.Flush()
 }
 
+// StructField is used to genreate go types.
 type StructField struct {
 	Name, FieldType, Tags string
-}
-
-func outputFile(dir, fname string) string {
-	return fmt.Sprintf("%s/%s", dir, fname)
 }
 
 func getServiceName(goType string) string {
 	return strings.ToLower(goType)
 }
 
-func generateData(url, ceType, ceSource, gitRepo string) map[string]interface{} {
-	schemaURL := fmt.Sprintf("%sdownload/%s", url, ceType)
+// Config is the internal configuration of this generator.
+type Config struct {
+	Dir      string
+	URL      string
+	CEType   string
+	CESource string
+	GitRepo  string
+	Target   string
+}
+
+func (c Config) outputFile(fname string) string {
+	return fmt.Sprintf("%s/%s", c.Dir, fname)
+}
+
+func (c Config) generateData() map[string]interface{} {
+	schemaURL := fmt.Sprintf("%sdownload/%s", c.URL, c.CEType)
 	var schema jsonschema.Type
 	downloadSchema(schemaURL, &schema)
 
@@ -119,52 +130,52 @@ func generateData(url, ceType, ceSource, gitRepo string) map[string]interface{} 
 	data["GoType"] = goType
 	data["StructFields"] = fields
 	data["ServiceName"] = svcName
-	data["GitRepo"] = gitRepo
-	data["cetype"] = ceType
-	data["cesource"] = ceSource
+	data["GitRepo"] = c.GitRepo
+	data["cetype"] = c.CEType
+	data["cesource"] = c.CESource
 	data["schema"] = schemaURL
+	data["target"] = c.Target
+	data["TypeComment"] = fmt.Sprintf("%s is a generated type for CloudEvents binding", goType)
 
 	return data
 }
 
 func runCommand(command, dir string) {
 	log.Printf("Running %s", command)
-	cmd := exec.Command(command)
-	cmd.Dir = dir
+	cmd := exec.Command(fmt.Sprintf("cd %s && %s", dir, command))
 	err := cmd.Run()
 	if err != nil {
-		log.Fatalf("Error running dep ensure: %v", err)
+		log.Fatalf("Error running %s: %v", command, err)
 	}
-
 }
 
-func generateReceiver(url, ceType, ceSource, dir, gitRepo string) {
-	data := generateData(url, ceType, ceSource, gitRepo)
+func generateReceiver(c Config) {
+	data := c.generateData()
 
 	// Generate files
-	os.Mkdir(dir, os.ModePerm)
+	os.Mkdir(c.Dir, os.ModePerm)
 	log.Printf("Generating golang function...")
-	renderTemplate("templates/Gopkg.toml.tmpl", outputFile(dir, "Gopkg.toml"), data)
-	renderTemplate("templates/receiver_main.go.tmpl", outputFile(dir, "main.go"), data)
-	renderTemplate("templates/service.yaml.tmpl", outputFile(dir, "service.yaml"), data)
-	renderTemplate("templates/trigger.yaml.tmpl", outputFile(dir, "trigger.yaml"), data)
+	renderTemplate("templates/Gopkg.toml.tmpl", c.outputFile("Gopkg.toml"), data)
+	renderTemplate("templates/receiver_main.go.tmpl", c.outputFile("main.go"), data)
+	renderTemplate("templates/service.yaml.tmpl", c.outputFile("service.yaml"), data)
+	renderTemplate("templates/trigger.yaml.tmpl", c.outputFile("trigger.yaml"), data)
 
-	runCommand("dep ensure", dir)
-	runCommand("go fmt ./...", dir)
-	log.Printf("You're good to go: cd %s; ko apply -f service.yaml", dir)
+	//runCommand("/usr/local/bin/dep ensure", c.Dir)
+	//runCommand("/usr/local/go/bin/go fmt ./...", c.Dir)
+	log.Printf("You're good to go: cd %s; ko apply -f service.yaml", c.Dir)
 }
 
-func generateSender(url, ceType, ceSource, dir, gitRepo string) {
-	data := generateData(url, ceType, ceSource, gitRepo)
+func generateSender(c Config) {
+	data := c.generateData()
 
 	// Generate files
-	os.Mkdir(dir, os.ModePerm)
+	os.Mkdir(c.Dir, os.ModePerm)
 	log.Printf("Generating golang client...")
-	renderTemplate("templates/client.go.tmpl", outputFile(dir, "main.go"), data)
+	renderTemplate("templates/client.go.tmpl", c.outputFile("main.go"), data)
 
-	runCommand("dep ensure", dir)
-	runCommand("go fmt ./...", dir)
-	log.Printf("Ready: cd %s", dir)
+	//runCommand("/usr/local/bin/dep ensure", c.Dir)
+	//runCommand("/usr/local/go/bin/go fmt ./...", c.Dir)
+	log.Printf("Ready: cd %s", c.Dir)
 }
 
 func main() {
@@ -173,6 +184,7 @@ func main() {
 	urlFlag := flag.String("registry", registry.Default, "schema registry")
 	mode := flag.String("mode", "receiver", "One of: receiver, both, sender")
 	ceSource := flag.String("source", "", "CloudEvents source to use when generating clients")
+	target := flag.String("target", "http://default-broker.default.svc.cluster.local", "target for clients")
 	//returnType := flag.String("rtype", "", "CE Return Type for mode both")
 	flag.Parse()
 
@@ -182,15 +194,23 @@ func main() {
 	}
 	dir := fmt.Sprintf("%s/src/github.com/%s", os.Getenv("GOPATH"), *gitRepo)
 
+	cfg := Config{
+		Dir:      dir,
+		URL:      *urlFlag,
+		CEType:   *ceType,
+		CESource: *ceSource,
+		GitRepo:  *gitRepo,
+		Target:   *target,
+	}
+
 	switch {
 	case *mode == "receiver":
 		log.Printf("Generating receiver code to %s", dir)
-		generateReceiver(*urlFlag, *ceType, *ceSource, dir, *gitRepo)
+		generateReceiver(cfg)
 	case *mode == "sender":
 		log.Printf("Generating sender code to %s", dir)
-		generateSender(*urlFlag, *ceType, *ceSource, dir, *gitRepo)
+		generateSender(cfg)
 	default:
 		log.Fatalf("Unsupported mode: `%s`, must be one of receiver, both, or sender.", *mode)
 	}
-
 }

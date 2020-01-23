@@ -11,18 +11,17 @@ import (
 
 // {{.TypeComment}}
 type {{.GoType}} struct {
-  {{range .StructFields}}
-  {{.Name}} {{.FieldType}} {{.Tags}}
+  {{range .StructFields}} {{.Name}} {{.FieldType}} {{.Tags}}
   {{end}}
 }
 
 func receiveEventTypeEvent(id, source, subject, eventType string, event {{.GoType}}) error {
   log.Printf("Received event of type %s with content %v", eventType, event)
-
+  // TODO(you) Do something to handle the event.
 	return nil
 }
 
-// Below here - mose of this would not be there.
+// Below here - most of this would not be there.
 
 func handleEvent(event cloudevents.Event, resp *cloudevents.EventResponse) error {
 	id := event.ID()
@@ -30,10 +29,11 @@ func handleEvent(event cloudevents.Event, resp *cloudevents.EventResponse) error
 	subject := event.Subject()
 	eventType := event.Type()
 
-	dataBytes, _ := event.DataBytes()
-
-	var data {{.GoType}}
-	json.Unmarshal(dataBytes, &data)
+	var data = &{{.GoType}}{}
+  err := event.DataAs(data)
+	if err != nil {
+		log.Printf("Error decoding event: %v", err)
+	}
 
 	err := receiveEventTypeEvent(id, source, subject, eventType, data)
 	if err != nil {

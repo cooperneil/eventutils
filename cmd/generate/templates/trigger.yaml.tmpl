@@ -3,9 +3,10 @@ kind: Trigger
 metadata:
   name: trigger-for-{{.ServiceName}}
 spec:
+  broker: default
   filter:
     attributes:
-      type: {{.Type}}
+      type: "{{.cetype}}"
   subscriber:
     ref:
       apiVersion: serving.knative.dev/v1
