@@ -1,0 +1,66 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"log"
+
+	cloudevents "github.com/cloudevents/sdk-go"
+	"knative.dev/eventing/pkg/kncloudevents"
+)
+
+type {{.GoType}} struct {
+  {{range .StructFields}} {{.Name}} {{.FieldType}} {{.Tags}}
+  {{end}}
+}
+
+type {{.ReplyGoType}} struct {
+  {{range .ReplyStructFields}} {{.Name}} {{.FieldType}} {{.Tags}}
+  {{end}}
+}
+
+func receiveEventTypeEvent(id, source, subject, eventType string, event {{.GoType}}) (*{{.ReplyGoType}}, error) {
+  log.Printf("Received event of type %s with content %v", eventType, event)
+  // TODO(you) Do something to handle the event.
+  // Create the reply and return it.
+	return nil, nil
+}
+
+func main() {
+	c, err := kncloudevents.NewDefaultClient()
+	if err != nil {
+		log.Fatal("Failed to create client, ", err)
+	}
+
+	log.Fatal(c.StartReceiver(context.Background(),
+		func(event cloudevents.Event, resp *cloudevents.EventResponse) error {
+      id := event.ID()
+    	source := event.Source()
+    	subject := event.Subject()
+    	eventType := event.Type()
+
+    	var data = &{{.GoType}}{}
+      err := event.DataAs(data)
+    	if err != nil {
+    		log.Printf("Error decoding event: %v", err)
+        return err
+    	}
+
+      reply, err := receiveEventTypeEvent(id, source, subject, eventType, data)
+			if err != nil {
+				log.Fatalf("Error proxying event: %v | error: %v", event, err)
+        return err
+			}
+
+      if reply != nil {
+        rEvent := cloudevents.NewEvent(cloudevents.VersionV1)
+      	rEvent.SetType("{{.ReplyCEType}}")
+      	rEvent.SetSource("{{.ReplyCESource}}")
+      	rEvent.SetID(id)
+      	rEvent.SetDataContentType("application/json")
+      	rEvent.SetDataSchema("{{.ReplySchema}}")
+      	rEvent.Data = reply
+        resp.RespondWith(200, &rEvent)
+      }
+		}))
+}

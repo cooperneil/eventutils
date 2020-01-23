@@ -106,6 +106,9 @@ type Config struct {
 	CESource string
 	GitRepo  string
 	Target   string
+
+	ReplyType   string
+	ReplySource string
 }
 
 func (c Config) outputFile(fname string) string {
@@ -140,6 +143,26 @@ func (c Config) generateData() map[string]interface{} {
 	return data
 }
 
+func (c Config) addReplyData(data map[string]interface{}) {
+	schemaURL := fmt.Sprintf("%sdownload/%s", c.URL, c.ReplyType)
+	var schema jsonschema.Type
+	downloadSchema(schemaURL, &schema)
+
+	required := make(map[string]bool)
+	for _, req := range schema.Required {
+		required[req] = true
+	}
+
+	goType := getTypeName(schema.Ref)
+	fields := processFields(schema, required)
+
+	data["ReplyGoType"] = goType
+	data["ReplyStructFields"] = fields
+	data["ReplyCEType"] = c.ReplyType
+	data["ReplyCESource"] = c.ReplySource
+	data["ReplySchema"] = schemaURL
+}
+
 func runCommand(command, dir string) {
 	log.Printf("Running %s", command)
 	cmd := exec.Command(fmt.Sprintf("cd %s && %s", dir, command))
@@ -165,6 +188,21 @@ func generateReceiver(c Config) {
 	log.Printf("You're good to go: cd %s; ko apply -f service.yaml", c.Dir)
 }
 
+func generateBoth(c Config) {
+	data := c.generateData()
+	c.addReplyData(data)
+
+	// Generate files
+	os.Mkdir(c.Dir, os.ModePerm)
+	log.Printf("Generating golang function...")
+	renderTemplate("templates/Gopkg.toml.tmpl", c.outputFile("Gopkg.toml"), data)
+	renderTemplate("templates/reply.go.tmpl", c.outputFile("main.go"), data)
+	renderTemplate("templates/service.yaml.tmpl", c.outputFile("service.yaml"), data)
+	renderTemplate("templates/trigger.yaml.tmpl", c.outputFile("trigger.yaml"), data)
+
+	log.Printf("You're good to go: cd %s; ko apply -f service.yaml", c.Dir)
+}
+
 func generateSender(c Config) {
 	data := c.generateData()
 
@@ -185,7 +223,8 @@ func main() {
 	mode := flag.String("mode", "receiver", "One of: receiver, both, sender")
 	ceSource := flag.String("source", "", "CloudEvents source to use when generating clients")
 	target := flag.String("target", "http://default-broker.default.svc.cluster.local", "target for clients")
-	//returnType := flag.String("rtype", "", "CE Return Type for mode both")
+	returnType := flag.String("rtype", "", "CE Return Type for mode both")
+	replySource := flag.String("rsource", "", "CE Reply Source")
 	flag.Parse()
 
 	if *gitRepo == "" {
@@ -195,12 +234,17 @@ func main() {
 	dir := fmt.Sprintf("%s/src/github.com/%s", os.Getenv("GOPATH"), *gitRepo)
 
 	cfg := Config{
-		Dir:      dir,
-		URL:      *urlFlag,
-		CEType:   *ceType,
-		CESource: *ceSource,
-		GitRepo:  *gitRepo,
-		Target:   *target,
+		Dir:         dir,
+		URL:         *urlFlag,
+		CEType:      *ceType,
+		CESource:    *ceSource,
+		GitRepo:     *gitRepo,
+		Target:      *target,
+		ReplyType:   *returnType,
+		ReplySource: *replySource,
+	}
+	if cfg.ReplySource == "" {
+		cfg.ReplySource = cfg.CESource
 	}
 
 	switch {
@@ -210,6 +254,9 @@ func main() {
 	case *mode == "sender":
 		log.Printf("Generating sender code to %s", dir)
 		generateSender(cfg)
+	case *mode == "both":
+		log.Printf("Generating receiver with rerply to %s", dir)
+		generateBoth(cfg)
 	default:
 		log.Fatalf("Unsupported mode: `%s`, must be one of receiver, both, or sender.", *mode)
 	}
